@@ -5,9 +5,66 @@
 
 ## Project Structure & Module Organization
 
-- Source code: `src/` (CLI wiring in `src/cli`, commands in `src/commands`, web provider in `src/provider-web.ts`, infra in `src/infra`, media pipeline in `src/media`).
+### Top-Level Layout
+
+```
+openclaw1/
+├── src/           # Main source code (~52 subsystems)
+├── apps/          # Native apps (macOS, iOS, Android, shared Swift kit)
+├── extensions/    # 32 plugin/extension workspace packages
+├── packages/      # Workspace packages (clawdbot, moltbot)
+├── skills/        # 50+ built-in assistant skills
+├── ui/            # Web UI (Lit web components)
+├── docs/          # Mintlify documentation
+├── scripts/       # Build, test, and utility scripts (~93 files)
+├── vendor/        # Vendored dependencies
+├── patches/       # pnpm patches for dependencies
+├── test/          # Shared test config, fixtures, mocks, helpers
+├── assets/        # Static assets (icons, images, DMG backgrounds)
+├── git-hooks/     # Pre-commit hook scripts
+├── dist/          # Built output (not checked in)
+└── Swabble/       # Workspace submodule
+```
+
+### Source Code (`src/`)
+
+- **CLI & commands:** `src/cli/` (wiring, ~40 commands), `src/commands/` (implementations for agents, auth, channels, browser, config, gateway, etc.)
+- **Core modules:** `src/agents/` (Pi agent, auth profiles, bash tools, skills), `src/gateway/` (Express + Hono server, auth, protocol, WebSocket), `src/providers/` (Anthropic, OpenAI, AWS Bedrock, GitHub Copilot, Google, etc.)
+- **Channel integrations:** `src/telegram/`, `src/discord/`, `src/slack/`, `src/signal/`, `src/imessage/`, `src/web/` (WhatsApp web), `src/line/`, `src/whatsapp/`
+- **Channel infrastructure:** `src/channels/` (plugin registry, routing, allowlists, session management, typing), `src/routing/` (message routing, command gating)
+- **Media & content:** `src/media/` (upload, download, transcoding, caching), `src/media-understanding/` (image/video analysis), `src/link-understanding/`, `src/tts/` (edge-tts), `src/markdown/`
+- **Infrastructure:** `src/infra/` (outbound delivery, logging, warnings, bonjour discovery, binary management), `src/config/` (YAML/JSON5), `src/sessions/`, `src/memory/`, `src/security/`
+- **UI & terminal:** `src/terminal/` (table, palette, progress), `src/tui/` (interactive CLI), `src/canvas-host/` (A2UI bundle)
+- **Plugin system:** `src/plugin-sdk/` (public SDK exports), `src/plugins/` (runtime management), `src/hooks/`
+- **Other:** `src/acp/` (Agent Client Protocol), `src/browser/` (Playwright automation), `src/cron/`, `src/daemon/`, `src/macos/`, `src/pairing/`, `src/process/`, `src/wizard/` (onboarding)
+- **Entry points:** `src/index.ts`, `src/entry.ts` (CLI), `src/extensionAPI.ts` (plugin SDK), `src/runtime.ts`, `src/globals.ts`
+
+### Native Apps (`apps/`)
+
+- **`apps/macos/`** - SwiftUI macOS app (menubar gateway, ~20 feature modules: Camera, Chat, Gateway, Location, Model, Screen, Settings, Status, Voice)
+- **`apps/ios/`** - SwiftUI iOS app (same feature modules, xcodegen for project generation)
+- **`apps/android/`** - Kotlin Android app (Gradle build, Node.js runtime integration via `NodeRuntime.kt`, foreground service)
+- **`apps/shared/`** - `OpenClawKit` shared Swift library for iOS/macOS
+
+### Extensions (`extensions/` - 32 plugins)
+
+Each is a workspace package with `package.json`, `index.ts`, and optional `openclaw.plugin.json`.
+
+- **Channel plugins:** discord, imessage, line, signal, slack, telegram, whatsapp, bluebubbles, feishu, googlechat, matrix, mattermost, msteams, nextcloud-talk, nostr, tlon, twitch, voice-call, zalo, zalouser
+- **Utility plugins:** copilot-proxy, diagnostics-otel, google-antigravity-auth, google-gemini-cli-auth, llm-task, lobster, memory-core, memory-lancedb, minimax-portal-auth, open-prose, qwen-portal-auth, skill-creator
+
+### Skills (`skills/` - 50+ skills)
+
+Pre-built assistant skills (1password, apple-notes, canvas, coding-agent, discord, github, notion, obsidian, openai-image-gen, peekaboo, slack, spotify-player, weather, etc.). Each skill directory integrates with the Pi agent system.
+
+### Web UI (`ui/`)
+
+Web components built with Lit (`@lit/context`, `@lit-labs/signals`). Source in `ui/src/`, styles in `ui/styles.css`, static assets in `ui/public/`.
+
+### General Rules
+
 - Tests: colocated `*.test.ts`.
-- Docs: `docs/` (images, queue, Pi config). Built output lives in `dist/`.
+- Docs: `docs/` (Mintlify). Built output lives in `dist/`.
 - Plugins/extensions: live under `extensions/*` (workspace packages). Keep plugin-only deps in the extension `package.json`; do not add them to the root `package.json` unless core uses them.
 - Plugins: install runs `npm install --omit=dev` in plugin dir; runtime deps must live in `dependencies`. Avoid `workspace:*` in `dependencies` (npm install breaks); put `openclaw` in `devDependencies` or `peerDependencies` instead (runtime resolves `openclaw/plugin-sdk` via jiti alias).
 - Installers served from `https://openclaw.ai/*`: live in the sibling repo `../openclaw.ai` (`public/install.sh`, `public/install-cli.sh`, `public/install.ps1`).
@@ -49,7 +106,7 @@
 
 ## Build, Test, and Development Commands
 
-- Runtime baseline: Node **22+** (keep Node + Bun paths working).
+- Runtime baseline: Node **22+** (keep Node + Bun paths working). Package manager: pnpm 10.x.
 - Install deps: `pnpm install`
 - Pre-commit hooks: `prek install` (runs same checks as CI)
 - Also supported: `bun install` (keep `pnpm-lock.yaml` + Bun patching in sync when touching deps/patches).
@@ -57,10 +114,25 @@
 - Run CLI in dev: `pnpm openclaw ...` (bun) or `pnpm dev`.
 - Node remains supported for running built output (`dist/*`) and production installs.
 - Mac packaging (dev): `scripts/package-mac-app.sh` defaults to current arch. Release checklist: `docs/platforms/mac/release.md`.
-- Type-check/build: `pnpm build`
-- TypeScript checks: `pnpm tsgo`
-- Lint/format: `pnpm check`
+- Type-check/build: `pnpm build` (tsdown, 4 entry points: index, entry, plugin-sdk, extensionAPI)
+- TypeScript checks: `pnpm tsgo` (TypeScript 5.9+)
+- Lint/format: `pnpm check` (runs tsgo + oxlint + oxfmt)
 - Tests: `pnpm test` (vitest); coverage: `pnpm test:coverage`
+- Mobile: `pnpm ios:build`/`pnpm ios:run` (xcodegen), `pnpm android:assemble`/`pnpm android:run` (Gradle)
+- Protocol generation: `pnpm protocol:gen` (JSON schema), `pnpm protocol:gen:swift` (Swift models)
+- UI dev: `pnpm ui:dev` (Lit web components), `pnpm canvas:a2ui:bundle` (A2UI canvas)
+
+### Key Config Files
+
+- `tsconfig.json` - ES2023 target, NodeNext modules, strict mode
+- `tsdown.config.ts` - Build config (4 entry points)
+- `vitest.config.ts` - Main test config (fork pool, 3-16 workers, 70% coverage thresholds)
+- `vitest.e2e.config.ts` / `vitest.live.config.ts` / `vitest.extensions.config.ts` - Specialized test configs
+- `.oxlintrc.json` - Oxlint rules (unicorn, typescript, oxc plugins)
+- `.oxfmtrc.jsonc` - Oxfmt formatting (import sorting, package.json sorting)
+- `.pre-commit-config.yaml` - Pre-commit hooks (oxlint, oxfmt, shellcheck, actionlint, zizmor, detect-secrets)
+- `.swiftformat` / `.swiftlint.yml` - Swift code quality (iOS/macOS)
+- `pnpm-workspace.yaml` - Workspace config (root, ui, packages/*, extensions/*)
 
 ## Coding Style & Naming Conventions
 
@@ -79,14 +151,26 @@
 
 ## Testing Guidelines
 
-- Framework: Vitest with V8 coverage thresholds (70% lines/branches/functions/statements).
-- Naming: match source names with `*.test.ts`; e2e in `*.e2e.test.ts`.
+- Framework: Vitest with V8 coverage thresholds (70% lines/functions/statements, 55% branches).
+- Naming: match source names with `*.test.ts`; e2e in `*.e2e.test.ts`; live provider tests in `*.live.test.ts`.
 - Run `pnpm test` (or `pnpm test:coverage`) before pushing when you touch logic.
 - Do not set test workers above 16; tried already.
+- Test configs: `vitest.config.ts` (main), `vitest.e2e.config.ts` (E2E, 2-4 workers), `vitest.live.config.ts` (live, 1 worker), `vitest.extensions.config.ts` (extension tests), `vitest.gateway.config.ts` (gateway-specific).
+- Shared test infrastructure lives in `test/` (setup, fixtures, mocks, helpers).
 - Live tests (real keys): `CLAWDBOT_LIVE_TEST=1 pnpm test:live` (OpenClaw-only) or `LIVE=1 pnpm test:live` (includes provider live tests). Docker: `pnpm test:docker:live-models`, `pnpm test:docker:live-gateway`. Onboarding Docker E2E: `pnpm test:docker:onboard`.
-- Full kit + what’s covered: `docs/testing.md`.
+- Full kit + what's covered: `docs/testing.md`.
 - Pure test additions/fixes generally do **not** need a changelog entry unless they alter user-facing behavior or the user asks for one.
 - Mobile: before using a simulator, check for connected real devices (iOS + Android) and prefer them when available.
+
+## CI/CD
+
+- GitHub Actions workflows in `.github/workflows/`:
+  - `ci.yml` - Main CI (install-check, 5 parallel checks: tsgo, lint, test, protocol, format)
+  - `docker-release.yml` - Docker image builds
+  - `install-smoke.yml` - Installation smoke tests
+  - `labeler.yml` - Auto-label PRs by changed files
+  - `formal-conformance.yml` - Formal verification
+- Deployment targets: Fly.io (`fly.toml`), Render (`render.yaml`), Docker (`Dockerfile`, `docker-compose.yml`).
 
 ## Commit & Pull Request Guidelines
 
