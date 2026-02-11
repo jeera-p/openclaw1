@@ -1,0 +1,19 @@
+{
+  "id": "automaker",
+  "name": "AutoMaker",
+  "description": "Manage AutoMaker projects, features, AI agents, and sessions.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "AutoMaker server URL (e.g. http://localhost:3008)"
+      },
+      "apiKey": {
+        "type": "string",
+        "description": "Optional API key for authenticated AutoMaker instances"
+      }
+    }
+  }
+}
